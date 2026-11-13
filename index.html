@@ -657,11 +657,23 @@ function sname(n,used){var s=n.replace(/[\\\/\?\*\[\]:]/g,' ').slice(0,31);var b
 function xlsxFor(mods){
   if(typeof XLSX==='undefined'){toast('Excel export library failed to load');return null}
   var wb=XLSX.utils.book_new(),used={};
-  var sum=[['Module','Tests','Passed','Failed','Pass rate %','New failures','Fixed']].concat(mods.map(function(m){var t=m.pass+m.fail;return [m.name,t,m.pass,m.fail,pct(m.pass,t),prev?m.nw:'',prev?m.fx:'']}));
-  var T=mods.reduce(function(a,m){return a+m.pass+m.fail},0),F=mods.reduce(function(a,m){return a+m.fail},0);
-  sum.push(['All modules',T,T-F,F,pct(T-F,T),'','']);
-  var ws=XLSX.utils.aoa_to_sheet(sum);ws['!cols']=[{wch:22},{wch:8},{wch:8},{wch:8},{wch:11},{wch:13},{wch:8}];
+  var cnt=function(ts,k){return ts.filter(function(x){return issueOf(x)===k}).length};
+  var all=[];mods.forEach(function(m){all=all.concat(m.tests)});
+  var rows=mods.map(function(m){var t=m.pass+m.fail,s=cnt(m.tests,'SUT'),a=cnt(m.tests,'TAF');return [m.name,t,m.pass,m.fail,pct(m.pass,t),s,a,prev?m.nw:'',prev?m.fx:'']});
+  var T=all.length,F=all.filter(function(x){return x.status==='fail'}).length,S=cnt(all,'SUT'),A=cnt(all,'TAF');
+  var M=run.meta;
+  var sum=[['Finexa QA Results - Run Summary'],[],
+    ['Run date',M.date||''],['Build',M.build?'#'+M.build:''],['Branch',M.branch||''],['Commit',M.commit||''],['Duration',M.duration||''],[],
+    ['Overall'],
+    ['Total test cases',T],['Passed',T-F],['Failed',F],['Pass rate %',pct(T-F,T)],
+    ['Failed - SUT issues (route to Developers)',S],['Failed - TAF issues (route to QA)',A],
+    ['SUT share of failures %',pct(S,F)],['TAF share of failures %',pct(A,F)],[],
+    ['By module'],
+    ['Module','Total tests','Passed','Failed','Pass rate %','Failed: SUT (Dev)','Failed: TAF (QA)','New failures','Fixed']].concat(rows);
+  sum.push(['All modules',T,T-F,F,pct(T-F,T),S,A,prev?mods.reduce(function(x,m){return x+m.nw},0):'',prev?mods.reduce(function(x,m){return x+m.fx},0):'']);
+  var ws=XLSX.utils.aoa_to_sheet(sum);ws['!cols']=[{wch:42},{wch:12},{wch:10},{wch:10},{wch:12},{wch:18},{wch:18},{wch:13},{wch:8}];
   XLSX.utils.book_append_sheet(wb,ws,sname('Summary',used));
+  [['SUT - Developers','SUT'],['TAF - QA','TAF']].forEach(function(p){var ts=all.filter(function(x){return issueOf(x)===p[1]});if(ts.length)XLSX.utils.book_append_sheet(wb,sheetOf(ts),sname(p[0],used))});
   mods.forEach(function(m){XLSX.utils.book_append_sheet(wb,sheetOf(m.tests),sname(m.name,used))});
   return XLSX.write(wb,{bookType:'xlsx',type:'array'});
 }
