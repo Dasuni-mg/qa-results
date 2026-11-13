@@ -98,6 +98,8 @@ tbody tr.link:hover td{background:var(--soft)}
 .pill.new{background:var(--warn-soft);color:var(--warn)}
 .pill.fixed{background:var(--accent-soft);color:var(--accent)}
 .pill.still{background:var(--soft);color:var(--muted)}
+.pill.sut{background:var(--fail-soft);color:var(--fail)}
+.pill.taf{background:var(--warn-soft);color:var(--warn)}
 .chip{display:inline-block;font-family:var(--mono);font-size:11.5px;padding:0 6px;border-radius:4px;background:var(--soft);color:var(--ink);margin:2px 4px 2px 0}
 .pri{font-size:12px;color:var(--muted)}.pri.high{color:var(--ink);font-weight:600}
 
@@ -134,6 +136,29 @@ pre{margin:0;font-family:var(--mono);font-size:12px;line-height:1.5;background:v
 .matrix td.z{color:var(--muted)}
 .matrix td.f{color:var(--fail);font-weight:500}
 @media (prefers-reduced-motion:no-preference){.nav{transition:background .12s}}
+/* ---- UI polish ---- */
+body{font-size:14.5px}
+.panel{box-shadow:0 1px 2px rgba(19,32,43,.05)}
+.tile{border-left:3px solid var(--line)}
+.tile:nth-child(2){border-left-color:var(--pass)}.tile:nth-child(3){border-left-color:var(--fail)}
+.tile:nth-child(4){border-left-color:var(--fail)}.tile:nth-child(5){border-left-color:var(--warn)}
+.tile .v{font-size:28px}
+thead th{position:sticky;top:0;z-index:1;background:var(--soft)}
+tbody tr:hover>td{background:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
+.detail:hover>td{background:var(--soft)}
+td{padding:11px 12px}
+.pill{padding:2px 9px;font-weight:600;letter-spacing:.01em}
+.pill.sut::before,.pill.taf::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:6px}
+td.e{color:var(--ink)}
+td.e .exp{margin-top:6px;font-weight:500}
+.seg button{padding:7px 13px}
+.seg button:hover:not(.on){background:var(--soft)}
+.seg button[data-f=SUT].on{background:var(--fail)}.seg button[data-f=TAF].on{background:var(--warn)}
+.seg button[data-f=SUT]:not(.on){color:var(--fail)}.seg button[data-f=TAF]:not(.on){color:var(--warn)}
+.search{padding:8px 12px}.search:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+.pat .m .pill{margin-right:8px;vertical-align:1px}
+.page-head h2{font-size:24px}
+.section>h3{margin-top:4px}
 </style></head><body>
 
 <div class="bar">
@@ -389,6 +414,8 @@ function viewOverview(mods){
   h+='<div class="tiles"><div class="tile"><div class="l">Tests</div><div class="v">'+tot+'</div></div>'+
      '<div class="tile"><div class="l">Passed</div><div class="v p">'+p+'</div><div class="n">'+pct(p,tot)+'% pass rate</div></div>'+
      '<div class="tile"><div class="l">Failed</div><div class="v f">'+f+'</div><div class="n">'+pct(f,tot)+'% of tests</div></div>'+
+     '<div class="tile"><div class="l">SUT issues</div><div class="v f">'+run.tests.filter(function(t){return issueOf(t)==='SUT'}).length+'</div><div class="n">→ Developers</div></div>'+
+     '<div class="tile"><div class="l">TAF issues</div><div class="v" style="color:var(--warn)">'+run.tests.filter(function(t){return issueOf(t)==='TAF'}).length+'</div><div class="n">→ QA</div></div>'+
      (prev?'<div class="tile"><div class="l">Since previous run</div><div class="v">+'+newN+' / −'+fixN+'</div><div class="n">new failures / fixed</div></div>':'')+
      '</div>';
   h+='<div class="panel pad"><dl class="meta">'+
@@ -411,7 +438,7 @@ function viewOverview(mods){
     h+='<div class="section"><h3>Most common failure patterns</h3><div class="panel">';
     pats.forEach(function(x){
       var ms=Object.keys(x.mods);
-      h+='<div class="pat"><div class="c">'+x.tests.length+'</div><div><div class="m">'+esc(x.msg)+'</div><div class="w">'+esc(x.where)+(x.where?' · ':'')+esc(ms.join(', '))+'</div></div></div>';
+      h+='<div class="pat"><div class="c">'+x.tests.length+'</div><div><div class="m">'+issuePill(x.tests[0])+esc(x.msg)+'</div><div class="w">'+esc(x.where)+(x.where?' · ':'')+esc(ms.join(', '))+'</div></div></div>';
     });
     h+='</div></div>';
   }
@@ -432,22 +459,22 @@ function viewModule(m){
   if(pats.length){
     h+='<div class="section" style="margin-top:0"><h3>Failure patterns in this module</h3><div class="panel">';
     pats.forEach(function(x){
-      h+='<div class="pat"><div class="c">'+x.tests.length+'</div><div><div class="m">'+esc(x.msg)+'</div>'+(x.where?'<div class="w">'+esc(x.where)+'</div>':'')+
+      h+='<div class="pat"><div class="c">'+x.tests.length+'</div><div><div class="m">'+issuePill(x.tests[0])+esc(x.msg)+'</div>'+(x.where?'<div class="w">'+esc(x.where)+'</div>':'')+
         '<div>'+x.tests.map(function(t){return '<span class="chip">'+esc(t.id)+(pj.length>1?' '+esc(t.project.slice(0,3)):'')+'</span>'}).join('')+'</div></div></div>';
     });
     h+='</div></div>';
   }
   h+='<div class="section"><h3>Tests</h3><div class="tools">'+
-    '<div class="seg" id="fseg"><button type="button" data-f="all">All ('+tot+')</button><button type="button" data-f="fail">Failed ('+m.fail+')</button><button type="button" data-f="pass">Passed ('+m.pass+')</button></div>'+
+    '<div class="seg" id="fseg"><button type="button" data-f="all">All ('+tot+')</button><button type="button" data-f="fail">Failed ('+m.fail+')</button><button type="button" data-f="SUT">SUT → Dev ('+m.tests.filter(function(t){return issueOf(t)==='SUT'}).length+')</button><button type="button" data-f="TAF">TAF → QA ('+m.tests.filter(function(t){return issueOf(t)==='TAF'}).length+')</button><button type="button" data-f="pass">Passed ('+m.pass+')</button></div>'+
     (pj.length>1?'<div class="seg" id="pseg"><button type="button" data-p="all">Both</button>'+pj.map(function(p){return '<button type="button" data-p="'+esc(p)+'">'+esc(p)+'</button>'}).join('')+'</div>':'')+
     '<input class="search" id="q" type="search" placeholder="Search test ID, title or error" value="'+esc(s.q)+'"></div>'+
-    '<div class="panel wrap"><table><thead><tr><th>ID</th><th>Test</th><th>Project</th><th>Priority</th><th>Result</th><th>Failure</th>'+(prev?'<th>Change</th>':'')+'</tr></thead><tbody id="rows"></tbody></table></div>'+
+    '<div class="panel wrap"><table><thead><tr><th>ID</th><th>Test</th><th>Project</th><th>Priority</th><th>Result</th><th>Route to</th><th>Failure</th>'+(prev?'<th>Change</th>':'')+'</tr></thead><tbody id="rows"></tbody></table></div>'+
     '<div class="note" id="shown"></div>'+((run.meta.reported||{}).skipped?'<div class="note">Passed includes any tests the log reports as skipped without naming them.</div>':'')+'</div>';
   $('main').innerHTML=h;markDl();
   function paint(){
     var q=s.q.toLowerCase(),rows=[];
     m.tests.forEach(function(t,i){
-      if(s.f!=='all'&&t.status!==s.f)return;if(s.p!=='all'&&t.project!==s.p)return;
+      if(s.f==='SUT'||s.f==='TAF'){if(issueOf(t)!==s.f)return}else if(s.f!=='all'&&t.status!==s.f)return;if(s.p!=='all'&&t.project!==s.p)return;
       var e=(t.errors&&t.errors[0])?t.errors[0].message:'';
       if(q&&(t.id+' '+t.title+' '+e).toLowerCase().indexOf(q)<0)return;
       rows.push(t);
@@ -458,11 +485,11 @@ function viewModule(m){
       out+='<tr><td class="mono" style="white-space:nowrap">'+esc(t.id)+'</td><td class="t"><div class="ttl">'+esc(t.title)+'</div>'+(t.group?'<div class="grp">'+esc(t.group)+'</div>':'')+'</td>'+
         '<td>'+esc(t.project)+'</td><td><span class="pri '+esc(t.priority)+'">'+esc(t.priority||'—')+'</span></td>'+
         '<td><span class="pill '+t.status+'">'+(t.status==='fail'?'Failed':'Passed')+'</span></td>'+
-        '<td class="e">'+(t.status==='fail'?esc(e.slice(0,160))+(e.length>160?'…':'')+(t.step?'<div class="sub">Step: '+esc(t.step)+'</div>':'')+'<button class="exp" type="button" data-k="'+esc(key)+'">'+(s.open[key]?'Hide details':'Show details')+'</button>':'')+'</td>'+
+        '<td>'+(t.status==='fail'?issuePill(t):'')+'</td><td class="e">'+(t.status==='fail'?esc(e.slice(0,160))+(e.length>160?'…':'')+(t.step?'<div class="sub">Step: '+esc(t.step)+'</div>':'')+'<button class="exp" type="button" data-k="'+esc(key)+'">'+(s.open[key]?'Hide details':'Show details')+'</button>':'')+'</td>'+
         (prev?'<td>'+(c?'<span class="pill '+c+'">'+(c==='new'?'New':c==='fixed'?'Fixed':'Still failing')+'</span>':'')+'</td>':'')+'</tr>';
-      if(t.status==='fail'&&s.open[key])out+='<tr class="detail"><td colspan="'+(prev?7:6)+'">'+detail(t)+'</td></tr>';
+      if(t.status==='fail'&&s.open[key])out+='<tr class="detail"><td colspan="'+(prev?8:7)+'">'+detail(t)+'</td></tr>';
     });
-    if(!rows.length)out='<tr><td colspan="7"><div class="empty">No tests match these filters.</div></td></tr>';
+    if(!rows.length)out='<tr><td colspan="8"><div class="empty">No tests match these filters.</div></td></tr>';
     $('rows').innerHTML=out;$('shown').textContent='Showing '+rows.length+' of '+tot+' tests.';
     var fs=$('fseg');[].forEach.call(fs.children,function(b){b.classList.toggle('on',b.dataset.f===s.f)});
     var ps=$('pseg');if(ps)[].forEach.call(ps.children,function(b){b.classList.toggle('on',b.dataset.p===s.p)});
@@ -512,6 +539,15 @@ function cmpData(){
   return d;
 }
 function errOf(t){return t&&t.errors&&t.errors[0]?t.errors[0].message:''}
+/* Issue owner: balance / narration mismatches are product bugs (SUT); everything else (time outs, locators, data setup) is automation (TAF). */
+function issueOf(t){
+  if(!t||t.status!=='fail')return '';
+  var e=(t.errors&&t.errors[0])||{},msg=e.message||'',det=e.detail||'';
+  if(e.type==='TimeoutError'||/^locator\.|^page\.|^frame\./i.test(msg))return 'TAF';
+  if(/waiting for (getBy|locator)/i.test(det)&&!/Expected:|Received:/.test(det))return 'TAF';
+  return /balance|narration/i.test(msg+' '+det.replace(/\n\s*\d*\s*[|>]\s.*$/gm,''))?'SUT':'TAF';
+}
+function issuePill(t){var k=issueOf(t);return k?'<span class="pill '+k.toLowerCase()+'" title="'+(k==='SUT'?'System under test issue':'Test automation framework issue')+'">'+k+' Issue → '+(k==='SUT'?'Developers':'QA')+'</span> ':''}
 function viewCompare(){
   var d=cmpData();
   var h='<div class="page-head"><div><h2>Compare runs</h2><div class="sub">Today\'s run against an earlier run, matched by test ID and project.</div></div></div>';
@@ -597,10 +633,10 @@ function viewRuns(){
 }
 
 /* ---------- downloads ---------- */
-var FIELDS=['Run date','Build','Module','Project','Test ID','Title','Priority','Result','Step','First error','Failure pattern','Spec file','Trace'];
+var FIELDS=['Run date','Build','Module','Project','Test ID','Title','Priority','Result','Issue type','Route to','Step','First error','Failure pattern','Spec file','Trace'];
 function row(t){
   var e=(t.errors&&t.errors[0])||null;
-  return [run.meta.date,run.meta.build||'',t.module,t.project,t.id,t.title,t.priority,t.status==='fail'?'Failed':'Passed',t.step||'',e?e.message:'',t.pattern||'',t.file.replace(/^src\/tests\/specs\//,'')+':'+t.line,t.trace||''];
+  return [run.meta.date,run.meta.build||'',t.module,t.project,t.id,t.title,t.priority,t.status==='fail'?'Failed':'Passed',issueOf(t),({SUT:'Developers',TAF:'QA'})[issueOf(t)]||'',t.step||'',e?e.message:'',t.pattern||'',t.file.replace(/^src\/tests\/specs\//,'')+':'+t.line,t.trace||''];
 }
 function csvOf(tests){
   var q=function(v){v=String(v==null?'':v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
@@ -614,7 +650,7 @@ function save(name,data){
 }
 function sheetOf(tests){
   var ws=XLSX.utils.aoa_to_sheet([FIELDS].concat(tests.map(row)));
-  ws['!cols']=[{wch:11},{wch:7},{wch:18},{wch:10},{wch:14},{wch:60},{wch:9},{wch:8},{wch:30},{wch:60},{wch:50},{wch:42},{wch:40}];
+  ws['!cols']=[{wch:11},{wch:7},{wch:18},{wch:10},{wch:14},{wch:60},{wch:9},{wch:8},{wch:11},{wch:11},{wch:30},{wch:60},{wch:50},{wch:42},{wch:40}];
   ws['!freeze']={xSplit:0,ySplit:1};return ws;
 }
 function sname(n,used){var s=n.replace(/[\\\/\?\*\[\]:]/g,' ').slice(0,31);var b=s,i=2;while(used[s])s=b.slice(0,28)+' '+(i++);used[s]=1;return s}
