@@ -545,6 +545,7 @@ function issueOf(t){
   var e=(t.errors&&t.errors[0])||{},msg=e.message||'',det=e.detail||'';
   if(e.type==='TimeoutError'||/^locator\.|^page\.|^frame\./i.test(msg))return 'TAF';
   if(/waiting for (getBy|locator)/i.test(det)&&!/Expected:|Received:/.test(det))return 'TAF';
+  if(/^Reject transaction failed|Rejection failed|Unable to process the transaction/i.test(msg))return 'SUT';
   return /balance|narration/i.test(msg+' '+det.replace(/\n\s*\d*\s*[|>]\s.*$/gm,''))?'SUT':'TAF';
 }
 function issuePill(t){var k=issueOf(t);return k?'<span class="pill '+k.toLowerCase()+'" title="'+(k==='SUT'?'System under test issue':'Test automation framework issue')+'">'+k+' Issue → '+(k==='SUT'?'Developers':'QA')+'</span> ':''}
