@@ -414,7 +414,7 @@ function viewOverview(mods){
   var M=run.meta,tot=run.tests.length,f=run.tests.filter(function(t){return t.status==='fail'}).length;
   var rep=M.reported||{},sk=Math.min(rep.skipped||0,tot-f),p=tot-f-sk;
   var h='<div class="page-head"><div><h2>Run overview</h2><div class="sub">'+(M.build?'Build #'+esc(M.build)+' · ':'')+fmtDate(M.date)+(M.finished?', '+esc(M.finished):'')+'</div></div>'+
-    '<div class="tools"><button class="btn dlb primary" data-act="pdf-summary" type="button">Test summary report (.pdf)</button><button class="btn dlb" data-act="xlsx-all" type="button">Download daily workbook (.xlsx)</button><button class="btn dlb" data-act="csv-fail" type="button">All failures (.csv)</button></div></div>';
+    '<div class="tools"><button class="btn dlb primary" data-act="pdf-summary" type="button">Test summary report (.pdf)</button><button class="btn dlb" data-act="xlsx-all" type="button">Download daily workbook (.xlsx)</button></div></div>';
   var newN=0,fixN=0;mods.forEach(function(m){newN+=m.nw;fixN+=m.fx});
   h+='<div class="tiles"><div class="tile"><div class="l">Tests</div><div class="v">'+tot+'</div></div>'+
      '<div class="tile"><div class="l">Passed</div><div class="v p">'+p+'</div><div class="n">'+pct(p,tot)+'% pass rate</div></div>'+
