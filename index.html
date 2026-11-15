@@ -695,7 +695,7 @@ function pdfSummary(mods){
   var INK=[10,22,40],NAVY=[14,32,62],DEEP=[28,58,108],BLUE=[52,98,170],PALE=[241,245,251],LINE=[219,226,238],MUTED=[100,112,130];
   var GREEN=[22,128,61],GREENL=[222,244,230],RED=[185,28,28],REDL=[253,233,233],ORANGE=[194,85,12],ORANGEL=[254,240,225];
   var good=st.label==='PASSED'||st.label==='PASSED WITH MINOR ISSUES';
-  var sc=good?GREEN:st.label==='AT RISK'?ORANGE:RED;
+  var sc=good?GREEN:RED;
   var doc=new window.jspdf.jsPDF({unit:'pt',format:'a4'}),W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),L=44,CW=W-2*L;
   var y=0,secNo=0;
   function fill(c){doc.setFillColor(c[0],c[1],c[2])}
@@ -725,7 +725,7 @@ function pdfSummary(mods){
   fill(DEEP);doc.rect(0,126,W,5,'F');fill(BLUE);doc.rect(0,126,W*0.34,5,'F');
   txt('QUALITY ASSURANCE',L,40,8.5,true,[130,160,210]);
   txt('Test Summary Report',L,70,27,true,[255,255,255]);
-  txt('Run timestamp:  '+fmtDate(M.date)+(M.finished?', '+M.finished:'')+'   |   Automated Playwright run',L,92,10,false,[175,194,224]);
+  txt(fmtDate(M.date)+'   |   Automated Playwright run',L,92,10,false,[175,194,224]);
   txt('Finexa QA Results',L,110,9,false,[120,142,180]);
   /* status pill */
   var pw=170;fill(sc);doc.roundedRect(W-L-pw,34,pw,58,8,8,'F');
@@ -753,7 +753,7 @@ function pdfSummary(mods){
   /* ---------- priority cards ---------- */
   var PR=['critical','high','medium','low'],pg={};
   tests.forEach(function(t){var k=PR.indexOf(t.priority)>=0?t.priority:'none';var x=pg[k]||(pg[k]={t:0,f:0});x.t++;if(t.status==='fail')x.f++});
-  var prKeys=PR.filter(function(k){return pg[k]}).concat(pg.none?['none']:[]);
+  var prKeys=PR.filter(function(k){return pg[k]});
   room(150);
   txt('Pass and fail rate by test priority',L,y+6,11,true,INK);y+=20;
   var cols=Math.min(prKeys.length,3),pcw=(CW-(cols-1)*gap)/cols,phh=96;
@@ -820,7 +820,7 @@ function pdfSummary(mods){
   title('Overall testing status');
   var tx=doc.splitTextToSize(st.note+' '+passed+' of '+total+' test cases passed ('+passPct+'%) and '+failed+' failed ('+failPct+'%): '+sutT.length+' product issue'+(sutT.length===1?'':'s')+' for Developers and '+tafT.length+' automation issue'+(tafT.length===1?'':'s')+' for QA'+(skipped?'; '+skipped+' skipped':'')+'.',CW-36);
   var bh=tx.length*13+44;room(bh+10);
-  fill(good?GREENL:st.label==='AT RISK'?ORANGEL:REDL);doc.roundedRect(L,y,CW,bh,8,8,'F');fill(sc);doc.roundedRect(L,y,6,bh,3,3,'F');
+  fill(good?GREENL:REDL);doc.roundedRect(L,y,CW,bh,8,8,'F');fill(sc);doc.roundedRect(L,y,6,bh,3,3,'F');
   txt(st.label,L+20,y+24,14,true,sc);txt(tx,L+20,y+42,9.5,false,INK);
 
   var n=doc.getNumberOfPages();
