@@ -542,16 +542,17 @@ function cmpData(){
   return d;
 }
 function errOf(t){return t&&t.errors&&t.errors[0]?t.errors[0].message:''}
-/* Issue owner: balance / narration mismatches are product bugs (SUT); everything else (time outs, locators, data setup) is automation (TAF). */
+/* Issue owner: automation problems (time outs, locators, navigation, test-data setup) are TAF; any failed check on what the app shows or does is SUT. */
 function issueOf(t){
   if(!t||t.status!=='fail')return '';
   var e=(t.errors&&t.errors[0])||{},msg=e.message||'',det=e.detail||'';
   if(e.type==='TimeoutError'||/^locator\.|^page\.|^frame\./i.test(msg))return 'TAF';
   if(/waiting for (getBy|locator)/i.test(det)&&!/Expected:|Received:/.test(det))return 'TAF';
-  if(/^NOT USER.FRIENDLY|not user.friendly/i.test(msg))return 'SUT';
-  if(/charge fields never auto.?populated|^Exchange Fee should (settle to|be loaded from the Charge Group)/i.test(msg))return 'SUT';
-  if(/^Reject transaction failed|Rejection failed|Unable to process the transaction|account.{0,40}restricted|restricted.{0,40}account/i.test(msg))return 'SUT';
-  return /balance|narration/i.test(msg+' '+det.replace(/\n\s*\d*\s*[|>]\s.*$/gm,''))?'SUT':'TAF';
+  /* Automation / test-data problems: the test could not do its job (navigation, selection, missing data). */
+  if(/Timeout \d+ms exceeded|no pre-selected|give it a holding|never settled|NOT ON SCREEN|extracted from the URL|did not register after|Should have available .{0,40}options|offers no option|test data|could not (find|locate|create)/i.test(msg))return 'TAF';
+  /* Everything else is the app misbehaving: wrong/missing values, calculations, auto-population, validation,
+     rejected or refused actions, unfriendly/vague messages, restricted accounts, label order, narration, balances. */
+  return 'SUT';
 }
 function issuePill(t){var k=issueOf(t);return k?'<span class="pill '+k.toLowerCase()+'" title="'+(k==='SUT'?'System under test issue':'Test automation framework issue')+'">'+k+' Issue → '+(k==='SUT'?'Developers':'QA')+'</span> ':''}
 function viewCompare(){
