@@ -175,6 +175,8 @@ td.e .exp{margin-top:6px;font-weight:500}
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script>
 (function (root) {
   var MODULE_BY_FILE = {
@@ -412,7 +414,7 @@ function viewOverview(mods){
   var M=run.meta,tot=run.tests.length,f=run.tests.filter(function(t){return t.status==='fail'}).length,p=tot-f;
   var rep=M.reported||{},sk=rep.skipped||0;
   var h='<div class="page-head"><div><h2>Run overview</h2><div class="sub">'+(M.build?'Build #'+esc(M.build)+' · ':'')+fmtDate(M.date)+(M.finished?' · finished '+esc(M.finished):'')+'</div></div>'+
-    '<div class="tools"><button class="btn dlb" data-act="xlsx-all" type="button">Download daily workbook (.xlsx)</button><button class="btn dlb" data-act="csv-fail" type="button">All failures (.csv)</button></div></div>';
+    '<div class="tools"><button class="btn dlb primary" data-act="pdf-summary" type="button">Test summary report (.pdf)</button><button class="btn dlb" data-act="xlsx-all" type="button">Download daily workbook (.xlsx)</button><button class="btn dlb" data-act="csv-fail" type="button">All failures (.csv)</button></div></div>';
   var newN=0,fixN=0;mods.forEach(function(m){newN+=m.nw;fixN+=m.fx});
   h+='<div class="tiles"><div class="tile"><div class="l">Tests</div><div class="v">'+tot+'</div></div>'+
      '<div class="tile"><div class="l">Passed</div><div class="v p">'+p+'</div><div class="n">'+pct(p,tot)+'% pass rate</div></div>'+
@@ -673,6 +675,76 @@ function csvOf(tests){
   var q=function(v){v=String(v==null?'':v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   return '﻿'+[FIELDS].concat(tests.map(row)).map(function(r){return r.map(q).join(',')}).join('\r\n')+'\r\n';
 }
+/* ---------- test summary report (PDF) ---------- */
+function overallStatus(passPct,failed,blockers){
+  if(!failed)return {label:'PASSED',note:'All executed test cases passed.'};
+  if(passPct>=95&&!blockers)return {label:'PASSED WITH MINOR ISSUES',note:'Pass rate is 95% or higher and no module is blocked.'};
+  if(passPct>=80)return {label:'AT RISK',note:'Pass rate is between 80% and 95%'+(blockers?', or at least one module is largely blocked':'')+'. Failures need review before release.'};
+  return {label:'FAILED - NOT READY',note:'Pass rate is below 80%. Critical failures must be fixed and the suite re-run.'};
+}
+function pdfSummary(mods){
+  if(!window.jspdf||!window.jspdf.jsPDF){toast('PDF library failed to load. Check your internet connection and reload.');return null}
+  var M=run.meta,rep=M.reported||{},tests=run.tests,total=tests.length;
+  var failed=tests.filter(function(t){return t.status==='fail'}).length,passed=total-failed,skipped=rep.skipped||0;
+  var passPct=pct(passed,total),failPct=pct(failed,total);
+  var sut=tests.filter(function(t){return issueOf(t)==='SUT'}).length,taf=tests.filter(function(t){return issueOf(t)==='TAF'}).length;
+  var blocked=mods.filter(function(m){var n=m.pass+m.fail;return m.fail&&m.fail/n>=0.5});
+  var st=overallStatus(passPct,failed,blocked.length);
+  var doc=new window.jspdf.jsPDF({unit:'pt',format:'a4'}),W=doc.internal.pageSize.getWidth(),L=40;
+  var col={SUT:[185,28,28],TAF:[180,83,9]};
+  doc.setFillColor(29,78,216);doc.rect(0,0,W,70,'F');
+  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(20);doc.text('Test Summary Report',L,34);
+  doc.setFont('helvetica','normal');doc.setFontSize(10);
+  doc.text('Finexa QA Results - Playwright pipeline'+(M.build?' - Build #'+M.build:''),L,54);
+  doc.setTextColor(40);doc.setFontSize(10);
+  var info=[['Run date',fmtDate(M.date)+(M.finished?' (finished '+M.finished+')':'')],['Branch',M.branch||'-'],['Commit',(M.commit||'-')+(M.commitMsg?' - '+M.commitMsg:'')],['Report generated',new Date().toISOString().slice(0,16).replace('T',' ')]];
+  doc.autoTable({startY:84,body:info,theme:'plain',styles:{fontSize:9,cellPadding:2},columnStyles:{0:{fontStyle:'bold',cellWidth:100}},margin:{left:L,right:L}});
+  var y=doc.lastAutoTable.finalY+10;
+  var sc=st.label==='PASSED'?[22,101,52]:st.label==='PASSED WITH MINOR ISSUES'?[21,128,61]:st.label==='AT RISK'?[180,83,9]:[185,28,28];
+  doc.setFillColor(sc[0],sc[1],sc[2]);doc.roundedRect(L,y,W-2*L,46,6,6,'F');
+  doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('OVERALL TESTING STATUS',L+12,y+16);
+  doc.setFontSize(16);doc.text(st.label,L+12,y+36);
+  y+=62;
+  function head(t){doc.setTextColor(30);doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text(t,L,y);y+=6}
+  head('1. Execution summary');
+  doc.autoTable({startY:y,head:[['Metric','Value']],body:[
+    ['Total number of test cases',String(total)],['Passed test cases',String(passed)],['Failed test cases',String(failed)],
+    ['Skipped tests',String(skipped)],['Execution duration',M.duration||'-'],['Pass percentage',passPct+'%'],['Fail percentage',failPct+'%'],
+    ['Failures caused by the system under test (SUT)',String(sut)],['Failures caused by test automation (TAF)',String(taf)]],
+    theme:'grid',headStyles:{fillColor:[29,78,216]},styles:{fontSize:9.5,cellPadding:4},columnStyles:{0:{cellWidth:300},1:{fontStyle:'bold'}},margin:{left:L,right:L}});
+  y=doc.lastAutoTable.finalY+20;
+  head('2. Results by module');
+  doc.autoTable({startY:y,head:[['Module','Total','Passed','Failed','Pass rate']],body:mods.map(function(m){var n=m.pass+m.fail;return [m.name,n,m.pass,m.fail,pct(m.pass,n)+'%']}),
+    theme:'striped',headStyles:{fillColor:[29,78,216]},styles:{fontSize:9,cellPadding:3},margin:{left:L,right:L},
+    didParseCell:function(d){if(d.section==='body'&&d.column.index===3&&+d.cell.raw>0){d.cell.styles.textColor=[185,28,28];d.cell.styles.fontStyle='bold'}}});
+  y=doc.lastAutoTable.finalY+20;
+  if(y>720){doc.addPage();y=50}
+  head('3. Major failures and blockers');
+  var pats=patterns(tests).slice(0,8);
+  if(blocked.length){
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(185,28,28);
+    var bt=doc.splitTextToSize('Blocked modules (half or more of the tests fail): '+blocked.map(function(m){return m.name+' ('+m.fail+'/'+(m.pass+m.fail)+')'}).join(', '),W-2*L);
+    doc.text(bt,L,y+10);y+=10+bt.length*11;
+  }
+  if(!pats.length){doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(60);doc.text('No failures recorded in this run.',L,y+12);y+=24}
+  else{
+    doc.autoTable({startY:y+4,head:[['#','Failure','Owner','Tests','Modules affected']],body:pats.map(function(g,i){
+        var o=issueOf(g.tests[0]);return [i+1,g.msg,o==='SUT'?'SUT (Dev)':'TAF (QA)',g.tests.length,Object.keys(g.mods).join(', ')]}),
+      theme:'grid',headStyles:{fillColor:[29,78,216]},styles:{fontSize:8.5,cellPadding:3,overflow:'linebreak'},margin:{left:L,right:L},
+      columnStyles:{0:{cellWidth:22},1:{cellWidth:200},2:{cellWidth:62},3:{cellWidth:36}},
+      didParseCell:function(d){if(d.section==='body'&&d.column.index===2){d.cell.styles.textColor=col[d.cell.raw.slice(0,3)];d.cell.styles.fontStyle='bold'}}});
+    y=doc.lastAutoTable.finalY+20;
+  }
+  if(y>700){doc.addPage();y=50}
+  head('4. Overall testing status');
+  doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(sc[0],sc[1],sc[2]);doc.text(st.label,L,y+16);
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(50);
+  var tx=doc.splitTextToSize(st.note+' '+passed+' of '+total+' test cases passed ('+passPct+'%); '+failed+' failed ('+sut+' product issues for Developers, '+taf+' automation issues for QA)'+(skipped?'; '+skipped+' skipped':'')+'.',W-2*L);
+  doc.text(tx,L,y+32);
+  var n=doc.getNumberOfPages();
+  for(var i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(130);doc.text('Page '+i+' of '+n,W-L,doc.internal.pageSize.getHeight()-20,{align:'right'});doc.text('Finexa QA Results',L,doc.internal.pageSize.getHeight()-20)}
+  return doc.output('arraybuffer');
+}
 function base(){return run.meta.date+(run.meta.build?'-build-'+run.meta.build:'')}
 function save(name,data){
   if(!dl){toast('Downloads are not available in this view');return}
@@ -714,6 +786,7 @@ document.addEventListener('click',function(ev){
   var act=b.dataset.act,mods=modules(),m=mods.filter(function(x){return x.slug===b.dataset.slug})[0];
   if(act==='csv-mod'&&m)save(m.slug+'-'+base()+'.csv',csvOf(m.tests));
   else if(act==='xlsx-mod'&&m){var d=xlsxFor([m]);if(d)save(m.slug+'-'+base()+'.xlsx',d)}
+  else if(act==='pdf-summary'){var d3=pdfSummary(mods);if(d3)save('test-summary-'+base()+'.pdf',d3)}
   else if(act==='xlsx-all'){var d2=xlsxFor(mods);if(d2)save('qa-results-'+base()+'.xlsx',d2)}
   else if(act==='csv-cmp'||act==='xlsx-cmp'){
     var cd=cmpData();if(!cd.base)return;var rows=cmpRows(cd),nm='compare-'+cd.base.meta.date+'-vs-'+run.meta.date;
@@ -752,7 +825,7 @@ var idx=loadIndex(),first=idx.length?loadRun(idx[idx.length-1].id):null;
 if(!first){first=SEED;saveRun(SEED)}
 setCurrent(first);route();
 dl={save:function(o){return new Promise(function(res,rej){try{
-  var blob=new Blob([o.data],{type:/\.xlsx$/.test(o.filename)?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/csv;charset=utf-8'});
+  var blob=new Blob([o.data],{type:/\.pdf$/.test(o.filename)?'application/pdf':/\.xlsx$/.test(o.filename)?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/csv;charset=utf-8'});
   var u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=o.filename;document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(u)},4000);res({status:'saved'})}catch(e){rej(e)}})}};markDl();
 })();
