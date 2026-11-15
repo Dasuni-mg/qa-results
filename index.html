@@ -384,7 +384,8 @@ function route(){
   renderSide(h,mods);
   var m=null;
   if(h.indexOf('m-')===0)m=mods.filter(function(x){return 'm-'+x.slug===h})[0];
-  if(h==='runs')viewRuns();
+  if(h==='days')viewDays();
+  else if(h==='runs')viewRuns();
   else if(h==='compare')viewCompare();
   else if(m)viewModule(m);
   else viewOverview(mods);
@@ -392,6 +393,7 @@ function route(){
 }
 function renderSide(h,mods){
   var s='<a class="nav '+(h==='overview'?'on':'')+'" href="#overview"><div class="row"><span>Overview</span></div></a>'+
+        '<a class="nav '+(h==='days'?'on':'')+'" href="#days"><div class="row"><span>Reports by date</span><span class="cnt">'+daysList().length+'</span></div></a>'+
         '<a class="nav '+(h==='compare'?'on':'')+'" href="#compare"><div class="row"><span>Compare runs</span></div></a>'+
         '<a class="nav '+(h==='runs'?'on':'')+'" href="#runs"><div class="row"><span>Saved runs</span><span class="cnt">'+runs.length+'</span></div></a><h3>Modules</h3>';
   mods.forEach(function(m){
@@ -545,6 +547,7 @@ function issueOf(t){
   var e=(t.errors&&t.errors[0])||{},msg=e.message||'',det=e.detail||'';
   if(e.type==='TimeoutError'||/^locator\.|^page\.|^frame\./i.test(msg))return 'TAF';
   if(/waiting for (getBy|locator)/i.test(det)&&!/Expected:|Received:/.test(det))return 'TAF';
+  if(/^NOT USER.FRIENDLY|not user.friendly/i.test(msg))return 'SUT';
   if(/^Reject transaction failed|Rejection failed|Unable to process the transaction|account.{0,40}restricted|restricted.{0,40}account/i.test(msg))return 'SUT';
   return /balance|narration/i.test(msg+' '+det.replace(/\n\s*\d*\s*[|>]\s.*$/gm,''))?'SUT':'TAF';
 }
@@ -595,6 +598,30 @@ function cmpRows(d){
   return out;
 }
 
+/* ---------- reports by date ---------- */
+function daysList(){
+  var l=loadIndex().map(function(x){return {id:x.id,date:x.date,build:x.build}});
+  var sid=runId(SEED);
+  if(!l.some(function(x){return x.id===sid}))l.push({id:sid,date:SEED.meta.date,build:SEED.meta.build,seed:1});
+  l.sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:(+b.build||0)-(+a.build||0)});
+  return l;
+}
+function viewDays(){
+  var l=daysList();
+  var h='<div class="page-head"><div><h2>Reports by date</h2><div class="sub">Click a date to view that day’s report. Upload each day’s pipeline log to add more dates.</div></div></div><div class="panel" style="padding:16px;display:flex;flex-wrap:wrap;gap:10px">';
+  l.forEach(function(x){
+    var r=x.seed?SEED:loadRun(x.id);if(!r)return;
+    var f=r.tests.filter(function(z){return z.status==='fail'}).length,cur=x.id===runId(run);
+    h+='<button class="btn'+(cur?' primary':'')+'" data-day="'+esc(x.id)+'" type="button" style="text-align:left;padding:10px 14px"><b>'+fmtDate(x.date)+'</b> <span class="mono">#'+esc(x.build||'?')+'</span><br><small>'+(r.tests.length-f)+' passed · '+f+' failed</small></button>';
+  });
+  h+='</div>';
+  $('main').innerHTML=h;
+  $('main').onclick=function(ev){
+    var b=ev.target.closest('button[data-day]');if(!b)return;
+    var id=b.dataset.day,r=id===runId(SEED)&&!loadRun(id)?SEED:loadRun(id);
+    if(r){setCurrent(r);location.hash='#overview';route()}
+  };
+}
 /* ---------- saved runs ---------- */
 function viewRuns(){
   var idx=loadIndex().slice().reverse();
