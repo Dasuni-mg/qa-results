@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Finexa QA Results</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d4ed8'/%3E%3Cpath d='M17 33l10 10 20-22' fill='none' stroke='%23fff' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
@@ -548,6 +549,7 @@ function issueOf(t){
   if(e.type==='TimeoutError'||/^locator\.|^page\.|^frame\./i.test(msg))return 'TAF';
   if(/waiting for (getBy|locator)/i.test(det)&&!/Expected:|Received:/.test(det))return 'TAF';
   if(/^NOT USER.FRIENDLY|not user.friendly/i.test(msg))return 'SUT';
+  if(/charge fields never auto.?populated|^Exchange Fee should (settle to|be loaded from the Charge Group)/i.test(msg))return 'SUT';
   if(/^Reject transaction failed|Rejection failed|Unable to process the transaction|account.{0,40}restricted|restricted.{0,40}account/i.test(msg))return 'SUT';
   return /balance|narration/i.test(msg+' '+det.replace(/\n\s*\d*\s*[|>]\s.*$/gm,''))?'SUT':'TAF';
 }
