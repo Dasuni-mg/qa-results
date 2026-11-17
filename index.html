@@ -98,6 +98,7 @@ tbody tr.link:hover td{background:var(--soft)}
 .pill.fail{background:var(--fail-soft);color:var(--fail)}
 .pill.new{background:var(--warn-soft);color:var(--warn)}
 .pill.fixed{background:var(--accent-soft);color:var(--accent)}
+.pill.newtest{background:var(--accent-soft);color:var(--accent);border:1px solid currentColor;margin-left:4px}
 .pill.still{background:var(--soft);color:var(--muted)}
 .pill.sut{background:var(--fail-soft);color:var(--fail)}
 .pill.taf{background:var(--warn-soft);color:var(--warn)}
@@ -351,6 +352,7 @@ function setCurrent(r){
   if(prev)prev.tests.forEach(function(t){prevMap[t.project+'|'+t.id]=t.status});
 }
 var prevMap={};
+function isNewTest(t){return !!prev&&prevMap[t.project+'|'+t.id]===undefined}
 function change(t){
   if(!prev)return '';
   var p=prevMap[t.project+'|'+t.id];
@@ -490,7 +492,7 @@ function viewModule(m){
       key=t.project+'|'+t.id;var e=(t.errors&&t.errors[0])?t.errors[0].message:'';var c=change(t);
       out+='<tr><td class="mono" style="white-space:nowrap">'+esc(t.id)+'</td><td class="t"><div class="ttl">'+esc(t.title)+'</div>'+(t.group?'<div class="grp">'+esc(t.group)+'</div>':'')+'</td>'+
         '<td>'+esc(t.project)+'</td><td><span class="pri '+esc(t.priority)+'">'+esc(t.priority||'—')+'</span></td>'+
-        '<td><span class="pill '+t.status+'">'+(t.status==='fail'?'Failed':'Passed')+'</span></td>'+
+        '<td><span class="pill '+t.status+'">'+(t.status==='fail'?'Failed':'Passed')+'</span>'+(t.status==='fail'&&isNewTest(t)?' <span class="pill newtest" title="Test did not exist in the previous run">New test</span>':'')+'</td>'+
         '<td>'+(t.status==='fail'?issuePill(t):'')+'</td><td class="e">'+(t.status==='fail'?esc(e.slice(0,160))+(e.length>160?'…':'')+(t.step?'<div class="sub">Step: '+esc(t.step)+'</div>':'')+'<button class="exp" type="button" data-k="'+esc(key)+'">'+(s.open[key]?'Hide details':'Show details')+'</button>':'')+'</td>'+
         (prev?'<td>'+(c?'<span class="pill '+c+'">'+(c==='new'?'New':c==='fixed'?'Fixed':'Still failing')+'</span>':'')+'</td>':'')+'</tr>';
       if(t.status==='fail'&&s.open[key])out+='<tr class="detail"><td colspan="'+(prev?8:7)+'">'+detail(t)+'</td></tr>';
@@ -580,12 +582,12 @@ function viewCompare(){
   h+='<div class="section" style="margin-top:0"><h3>By module</h3><div class="panel wrap"><table class="matrix"><thead><tr><th>Module</th><th>Failed both days</th><th>Fixed</th><th>New failures</th></tr></thead><tbody>'+
     (names.length?names.map(function(n){var x=mm[n];return '<tr><td>'+esc(n)+'</td><td class="'+(x.both?'f':'z')+' num">'+x.both+'</td><td class="num '+(x.fixed?'':'z')+'">'+x.fixed+'</td><td class="'+(x.newf?'f':'z')+' num">'+x.newf+'</td></tr>'}).join(''):'<tr><td colspan="4"><div class="empty">No failures in either run.</div></td></tr>')+'</tbody></table></div></div>';
   function sect(title,sub,arr,mode){
-    h+='<div class="section"><h3>'+esc(title)+' ('+arr.length+')</h3><div class="note" style="margin:-4px 0 8px">'+esc(sub)+'</div>';
+    h+='<div class="section"><h3>'+esc(title)+' ('+arr.length+')'+(mode==='newf'&&arr.length?' <button class="btn dlb" data-act="pdf-newf" type="button" style="margin-left:10px;vertical-align:2px">Download PDF</button>':'')+'</h3><div class="note" style="margin:-4px 0 8px">'+esc(sub)+'</div>';
     if(!arr.length){h+='<div class="panel empty">None</div></div>';return}
     var rows=arr.slice().sort(function(a,b){var x=(a.cur||a.base),y=(b.cur||b.base);return x.module<y.module?-1:x.module>y.module?1:(x.id<y.id?-1:1)});
     h+='<div class="panel wrap"><table><thead><tr><th>Module</th><th>ID</th><th>Project</th><th>Test</th><th>'+(mode==='fixed'?'Failure before':'Failure now')+'</th>'+(mode==='both'?'<th>Same error?</th>':'')+'</tr></thead><tbody>';
     rows.forEach(function(e){var t=e.cur||e.base,er=mode==='fixed'||mode==='gone'?errOf(e.base):errOf(e.cur);
-      h+='<tr><td style="white-space:nowrap">'+esc(t.module)+'</td><td class="mono" style="white-space:nowrap">'+esc(t.id)+'</td><td>'+esc(t.project)+'</td><td class="t"><div class="ttl">'+esc(t.title)+'</div></td><td class="e">'+esc(er.slice(0,180))+(er.length>180?'…':'')+'</td>'+
+      h+='<tr><td style="white-space:nowrap">'+esc(t.module)+'</td><td class="mono" style="white-space:nowrap">'+esc(t.id)+'</td><td>'+esc(t.project)+'</td><td class="t"><div class="ttl">'+esc(t.title)+(mode==='newf'&&!e.base?' <span class="pill newtest" title="Test did not exist in the earlier run">New test</span>':'')+'</div></td><td class="e">'+esc(er.slice(0,180))+(er.length>180?'…':'')+'</td>'+
         (mode==='both'?'<td>'+(e.cur.pattern===e.base.pattern?'<span class="pill still">Same</span>':'<span class="pill new">Different</span>')+'</td>':'')+'</tr>'});
     h+='</tbody></table></div></div>';
   }
@@ -893,6 +895,7 @@ document.addEventListener('click',function(ev){
   if(act==='csv-mod'&&m)save(m.slug+'-'+base()+'.csv',csvOf(m.tests));
   else if(act==='xlsx-mod'&&m){var d=xlsxFor([m]);if(d)save(m.slug+'-'+base()+'.xlsx',d)}
   else if(act==='pdf-summary'){pdfSummary(mods).then(function(d3){if(d3)save('test-summary-'+run.meta.date+'.pdf',d3)})}
+  else if(act==='pdf-newf'){var pc=cmpData();if(!pc.base)return;var pd=pdfNewf(pc);if(pd)save('new-failures-'+pc.base.meta.date+'-vs-'+run.meta.date+'.pdf',pd)}
   else if(act==='xlsx-all'){var d2=xlsxFor(mods);if(d2)save('qa-results-'+base()+'.xlsx',d2)}
   else if(act==='csv-cmp'||act==='xlsx-cmp'){
     var cd=cmpData();if(!cd.base)return;var rows=cmpRows(cd),nm='compare-'+cd.base.meta.date+'-vs-'+run.meta.date;
@@ -904,6 +907,20 @@ document.addEventListener('click',function(ev){
   }
   else if(act==='csv-fail')save('qa-failures-'+base()+'.csv',csvOf(run.tests.filter(function(t){return t.status==='fail'})));
 });
+function pdfNewf(cd){
+  if(!window.jspdf||!window.jspdf.jsPDF){toast('PDF library failed to load. Check your internet connection and reload.');return null}
+  var doc=new window.jspdf.jsPDF({unit:'pt',format:'a4',orientation:'landscape'}),L=36;
+  var bl=fmtDate(cd.base.meta.date)+(cd.base.meta.build?' (#'+cd.base.meta.build+')':''),cl=fmtDate(run.meta.date)+(run.meta.build?' (#'+run.meta.build+')':'');
+  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.text('Passing before, failing now ('+cd.newf.length+')',L,40);
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(100);
+  doc.text('New failures in '+cl+' compared with '+bl+'. Tests marked "New test" did not exist in the earlier run.',L,58);
+  var rows=cd.newf.slice().sort(function(a,b){var x=a.cur,y=b.cur;return x.module<y.module?-1:x.module>y.module?1:(x.id<y.id?-1:1)}).map(function(e){var t=e.cur;
+    return [t.module,t.id,t.project,t.title+(e.base?'':'  [New test]'),errOf(t).slice(0,300)]});
+  doc.autoTable({startY:72,head:[['Module','ID','Project','Test','Failure now']],body:rows,theme:'grid',margin:{left:L,right:L},
+    styles:{font:'helvetica',fontSize:8.5,cellPadding:4,overflow:'linebreak'},headStyles:{fillColor:[14,32,62],textColor:255},
+    columnStyles:{0:{cellWidth:90},1:{cellWidth:60},2:{cellWidth:60},3:{cellWidth:220}}});
+  return doc.output('arraybuffer');
+}
 function markDl(){[].forEach.call(document.querySelectorAll('.dlb'),function(b){b.hidden=!dl})}
 
 /* ---------- upload ---------- */
