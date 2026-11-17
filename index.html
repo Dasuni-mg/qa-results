@@ -794,7 +794,32 @@ function buildPdf(mods,fonts){
   if(!pg.critical)note('Priority comes from each test\'s @tag. This run has no @critical tests, so High is the top priority shown.');
   y+=18;
 
-  /* ---------- 2. modules ---------- */
+  /* ---------- 2. test type ---------- */
+  var TYPES=[['universal','Universal tests'],['dashboard','Dashboard tests']];
+  tests.forEach(function(t){if(!TYPES.some(function(x){return x[0]===t.project}))TYPES.push([t.project,(t.project==='default'?'Other':t.project.charAt(0).toUpperCase()+t.project.slice(1))+' tests'])});
+  TYPES=TYPES.filter(function(x,i,a){return a.findIndex(function(z){return z[0]===x[0]})===i&&tests.some(function(t){return t.project===x[0]})});
+  title('Results by test type');
+  note('Universal tests and Dashboard tests run the same scenarios through different entry points. They are reported separately so a failure can be traced to the right suite.');
+  var typeSum=TYPES.map(function(ty){var ts=tests.filter(function(t){return t.project===ty[0]}),f=ts.filter(function(t){return t.status==='fail'}).length;return [ty[1],ts.length,ts.length-f,f,pct(ts.length-f,ts.length)+'%',pct(f,ts.length)+'%']});
+  var typeCol={0:{fontStyle:'bold'},1:{halign:'center'},2:{halign:'center'},3:{halign:'center'},4:{halign:'center'},5:{halign:'center'}};
+  function typeCell(d){if(d.section!=='body')return;
+    if(d.column.index===2)d.cell.styles.textColor=GREEN;
+    if(d.column.index===3&&+d.cell.raw>0){d.cell.styles.textColor=RED;d.cell.styles.fontStyle='bold';d.cell.styles.fillColor=REDL}
+    if(d.column.index===4){var v=parseFloat(d.cell.raw);d.cell.styles.fontStyle='bold';d.cell.styles.textColor=v===100?GREEN:v>=50?ORANGE:RED}
+    if(d.column.index===5&&parseFloat(d.cell.raw)>0)d.cell.styles.textColor=RED}
+  tbl({startY:y,head:[['Test type','Total','Passed','Failed','Pass rate','Fail rate']],body:typeSum,columnStyles:typeCol,didParseCell:typeCell});
+  y=doc.lastAutoTable.finalY+16;
+  TYPES.forEach(function(ty){
+    var ts=tests.filter(function(t){return t.project===ty[0]}),mm={},ord=[];
+    ts.forEach(function(t){var x=mm[t.module];if(!x){x=mm[t.module]={t:0,f:0};ord.push(t.module)}x.t++;if(t.status==='fail')x.f++});
+    room(90);txt(ty[1]+' by module',L,y+8,11,true,INK);y+=16;
+    tbl({startY:y,head:[['Module','Total','Passed','Failed','Pass rate','Fail rate']],
+      body:ord.map(function(k){var x=mm[k];return [k,x.t,x.t-x.f,x.f,pct(x.t-x.f,x.t)+'%',pct(x.f,x.t)+'%']}),columnStyles:typeCol,didParseCell:typeCell});
+    y=doc.lastAutoTable.finalY+16;
+  });
+  y+=8;
+
+  /* ---------- 3. modules ---------- */
   title('Results by module');
   tbl({startY:y,head:[['Module','Total','Passed','Failed','Pass rate','Fail rate']],
     body:mods.map(function(m){var n=m.pass+m.fail;return [m.name,n,m.pass,m.fail,pct(m.pass,n)+'%',pct(m.fail,n)+'%']}),
